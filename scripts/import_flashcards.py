@@ -2,7 +2,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add backend to path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -77,7 +77,7 @@ async def import_flashcards():
                 hint=card_data.get("hint", ""),
                 topic=card_data.get("topic", ""),
                 subtopic=card_data.get("subtopic", ""),
-                due_date=datetime.utcnow()
+                due_date=datetime.now(timezone.utc)
             )
             await card.insert()
             imported += 1

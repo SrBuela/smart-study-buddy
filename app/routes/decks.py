@@ -1,71 +1,68 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List
-from app.models.deck import Deck
-from app.models.user import User
-from app.schemas.deck import DeckCreate, DeckUpdate, DeckResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from datetime import datetime
 from app.routes.auth import get_current_user
 
-router = APIRouter(prefix="/api/ai", tags=["AI Features"])
+router = APIRouter(prefix="/api/decks", tags=["Decks"])
 
+class DeckCreate(BaseModel):
+    name: str
+    description: str = ""
+    subject: str = ""
+    tags: list = []
 
-@router.post("/", response_model=DeckResponse)
-async def create_deck(
-        deck_data: DeckCreate,
-        current_user: User = Depends(get_current_user)
-):
-    deck = Deck(
-        **deck_data.model_dump(),
-        owner=current_user
-    )
-    await deck.insert()
-    return deck
+def _decks(request: Request):
+    return request.app.state.db["decks"]
 
+@router.post("/")
+async def create_deck(data: DeckCreate, request: Request, current_user = Depends(get_current_user)):
+    now = datetime.utcnow()
+    doc = {
+        "name": data.name,
+        "description": data.description,
+        "owner": current_user["_id"],
+        "subject": data.subject,
+        "tags": data.tags,
+        "card_count": 0,
+        "new_count": 0,
+        "learning_count": 0,
+        "review_count": 0,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = await _decks(request).insert_one(doc)
+    return {"_id": str(result.inserted_id), "name": data.name, "card_count": 0}
 
-@router.get("/", response_model=List[DeckResponse])
-async def get_decks(current_user: User = Depends(get_current_user)):
-    decks = await Deck.find({"owner.id": str(current_user.id)}).to_list()
+@router.get("/")
+async def list_decks(request: Request, current_user = Depends(get_current_user)):
+    cursor = _decks(request).find({"owner": current_user["_id"]})
+    decks = []
+    async for d in cursor:
+        d["_id"] = str(d["_id"])
+        decks.append(d)
     return decks
 
+@router.get("/{deck_id}")
+async def get_deck(deck_id: str, request: Request, current_user = Depends(get_current_user)):
+    d = await _decks(request).find_one({"_id": deck_id, "owner": current_user["_id"]})
+    if not d:
+        raise HTTPException(404, "Deck not found")
+    d["_id"] = str(d["_id"])
+    return d
 
-@router.get("/{deck_id}", response_model=DeckResponse)
-async def get_deck(
-        deck_id: str,
-        current_user: User = Depends(get_current_user)
-):
-    deck = await Deck.get(deck_id)
-    if not deck or str(deck.owner.id) != str(current_user.id):
-        raise HTTPException(status_code=404, detail="Deck not found")
-    return deck
-
-
-@router.put("/{deck_id}", response_model=DeckResponse)
-async def update_deck(
-        deck_id: str,
-        deck_data: DeckUpdate,
-        current_user: User = Depends(get_current_user)
-):
-    deck = await Deck.get(deck_id)
-    if not deck or str(deck.owner.id) != str(current_user.id):
-        raise HTTPException(status_code=404, detail="Deck not found")
-
-    update_data = deck_data.model_dump(exclude_unset=True)
-    await deck.set(update_data)
-
-    return deck
-
+@router.put("/{deck_id}")
+async def update_deck(deck_id: str, data: DeckCreate, request: Request, current_user = Depends(get_current_user)):
+    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    result = await _decks(request).update_one(
+        {"_id": deck_id, "owner": current_user["_id"]},
+        {"$set": update_data}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Deck not found")
+    return {"message": "updated"}
 
 @router.delete("/{deck_id}")
-async def delete_deck(
-        deck_id: str,
-        current_user: User = Depends(get_current_user)
-):
-    deck = await Deck.get(deck_id)
-    if not deck or str(deck.owner.id) != str(current_user.id):
-        raise HTTPException(status_code=404, detail="Deck not found")
-
-    # Delete all cards in deck
-    from app.models.card import Card
-    await Card.find({"deck.id": deck_id}).delete()
-
-    await deck.delete()
-    return {"message": "Deck and all its cards deleted successfully"}
+async def delete_deck(deck_id: str, request: Request, current_user = Depends(get_current_user)):
+    await _decks(request).delete_one({"_id": deck_id, "owner": current_user["_id"]})
+    await request.app.state.db["cards"].delete_many({"deck": deck_id})
+    return {"message": "deleted"}

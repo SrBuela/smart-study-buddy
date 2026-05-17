@@ -1,48 +1,57 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional, Union
+
+
+class FlashcardItem(BaseModel):
+    front: str
+    back: str
+    hint: Optional[str] = None
+    topic: Optional[str] = None
+
 
 class FlashcardGenerationRequest(BaseModel):
-    text: str
-    deck_id: Optional[str] = None
+    text: str = Field(..., min_length=10)
     card_count: int = Field(default=10, ge=1, le=50)
-    include_hints: bool = False
+    include_hints: bool = True
+    topic: Optional[str] = None
+
 
 class FlashcardGenerationResponse(BaseModel):
-    cards: List[dict]
+    cards: List[FlashcardItem]
     tokens_used: int
     estimated_cost: float
 
-class PDFGenerationRequest(BaseModel):
-    deck_name: str
-    card_count: int = Field(default=20, ge=1, le=100)
 
 class NoteSummaryRequest(BaseModel):
-    text: str
-    max_length: int = Field(default=500, ge=100, le=2000)
+    text: str = Field(..., min_length=10)
+    max_length: Optional[int] = 500
+
+
+class KeyTerm(BaseModel):
+    term: str
+    definition: str
+
 
 class NoteSummaryResponse(BaseModel):
     summary: str
-    key_points: List[str]
-    key_terms: List[str]
+    key_points: List[str] = []
+    key_terms: List[KeyTerm] = []
+    word_count: int = 0
 
-class WeakTopicDetection(BaseModel):
-    topic: str
-    card_count: int
-    average_lapses: float
-    average_rating: float
-    mastery_level: float
-
-class QuizGenerationRequest(BaseModel):
-    deck_id: str
-    question_count: int = Field(default=5, ge=1, le=20)
-    difficulty: str = "medium"  # easy, medium, hard
 
 class QuizQuestion(BaseModel):
     question: str
     options: List[str]
-    correct_answer: int
-    explanation: str
+    correct_answer: Union[int, str]
+    explanation: Optional[str] = None
+
+
+class QuizGenerationRequest(BaseModel):
+    deck_id: str
+    question_count: int = Field(default=10, ge=1, le=50)
+    difficulty: Optional[str] = "medium"
+
 
 class QuizResponse(BaseModel):
     questions: List[QuizQuestion]

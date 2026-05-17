@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from beanie import PydanticObjectId
 from app.models.user import User
 from app.schemas.ai import (
     FlashcardGenerationRequest, FlashcardGenerationResponse,
@@ -64,7 +65,10 @@ async def summarize_notes(request: NoteSummaryRequest, current_user: User = Depe
 async def generate_quiz(request: QuizGenerationRequest, current_user: User = Depends(get_current_user)):
     try:
         from app.models.card import Card
-        cards = await Card.find({"deck.id": request.deck_id}).to_list()
+        # Fix: use $id for Beanie linked documents
+        cards = await Card.find(
+            {"deck.$id": PydanticObjectId(request.deck_id)}
+        ).to_list()
         if not cards:
             raise HTTPException(status_code=404, detail="No cards found in deck")
         cards_content = [{"front": card.front, "back": card.back} for card in cards]

@@ -1,25 +1,25 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+
 from app.core.config import settings
 from app.database import init_db
 from app.routes import auth, cards, decks, ai, analytics
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("Starting up Smart Study Buddy API...")
-    await init_db()
+    db = await init_db()
+    app.state.db = db
     print("Database initialized successfully")
     yield
-    # Shutdown
     print("Shutting down...")
 
 app = FastAPI(
     title="Smart Study Buddy API",
     description="AI-powered spaced repetition system using FSRS algorithm",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -31,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include all routers
 app.include_router(auth.router)
 app.include_router(decks.router)
 app.include_router(cards.router)
@@ -48,9 +48,9 @@ async def root():
             "AI flashcard generation",
             "Weak topic detection",
             "Memory prediction",
-            "Study analytics"
+            "Study analytics",
         ],
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 @app.get("/health")

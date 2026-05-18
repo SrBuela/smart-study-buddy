@@ -8,13 +8,15 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://localhost:27017"
     DATABASE_NAME: str = "smart_study_buddy"
 
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
+
     # JWT
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # OpenAI
-    OPENAI_API_KEY: str = ""
 
     # Google AI
     GOOGLE_API_KEY: str = ""

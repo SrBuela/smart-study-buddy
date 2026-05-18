@@ -1,160 +1,133 @@
 import json
-from typing import List, Optional, Dict
-from openai import AsyncOpenAI
+from typing import List, Dict
 from app.core.config import settings
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 class AIService:
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
+        # If DEEPSEEK_API_KEY is empty or still the placeholder, use mock
+        self.use_mock = (
+            not settings.DEEPSEEK_API_KEY
+            or settings.DEEPSEEK_API_KEY == "your-deepseek-api-key"
+        )
 
+    # ------------------------------------------------------------
+    # 🧠 Real DeepSeek client (OpenAI‑compatible)
+    # ------------------------------------------------------------
+    def _get_client(self):
+        from openai import OpenAI
+        return OpenAI(
+            api_key=settings.DEEPSEEK_API_KEY,
+            base_url="https://api.deepseek.com",  # OpenAI‑compatible endpoint[reference:1]
+        )
+
+    # ------------------------------------------------------------
+    # 📝 Generate flashcards
+    # ------------------------------------------------------------
     async def generate_flashcards(
-            self,
-            text: str,
-            count: int = 10,
-            include_hints: bool = False
+        self, text: str, count: int = 10, include_hints: bool = False
     ) -> List[Dict]:
-        """Generate flashcards from text using AI"""
-        if not self.openai_client:
-            raise ValueError("OpenAI API key not configured")
+        if self.use_mock:
+            return [
+                {
+                    "front": "What is the capital of France?",
+                    "back": "Paris",
+                    "topic": "Geography",
+                    "hint": "City of Light" if include_hints else "",
+                },
+                {
+                    "front": "Explain the concept of variables in programming.",
+                    "back": "A variable is a named storage location that holds data.",
+                    "topic": "Programming",
+                    "hint": "Think of a labeled box" if include_hints else "",
+                },
+                {
+                    "front": "What does the input() function do in Python?",
+                    "back": "It reads a line from standard input and returns it as a string.",
+                    "topic": "Python",
+                    "hint": "User interaction" if include_hints else "",
+                },
+            ][:count]
 
+        # --- Real DeepSeek call ---
+        client = self._get_client()
         prompt = f"""You are an expert flashcard creator. Generate {count} high-quality flashcards from the following text.
-
-        Rules for creating flashcards:
-        1. Follow the minimum information principle (one concept per card)
-        2. Questions should be clear, specific, and unambiguous
-        3. Answers should be concise (1-3 sentences)
-        4. Cover the most important concepts
-        5. Categorize each card by topic
-        {f'6. Include helpful hints where appropriate' if include_hints else ''}
-
-        Text: {text[:4000]}  # Limit text length
-
-        Return ONLY valid JSON with this structure:
-        {{
-            "cards": [
-                {{
-                    "front": "Question text here",
-                    "back": "Answer text here",
-                    "topic": "Topic category",
-                    "hint": "Optional hint" 
-                }}
-            ]
-        }}"""
-
-        try:
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-                max_tokens=2000
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            tokens_used = response.usage.total_tokens
-
-            logger.info(f"Generated {len(result.get('cards', []))} cards using {tokens_used} tokens")
-            return result.get("cards", [])
-
-        except Exception as e:
-            logger.error(f"Error generating flashcards: {str(e)}")
-            raise
-
-    async def summarize_notes(
-            self,
-            text: str,
-            max_length: int = 500
-    ) -> Dict:
-        """Generate summary and key points from notes"""
-        if not self.openai_client:
-            raise ValueError("OpenAI API key not configured")
-
-        prompt = f"""Summarize the following text. Provide:
-        1. A concise summary (max {max_length} characters)
-        2. Key points (bullet points, 3-7 items)
-        3. Key terms with brief definitions (3-7 items)
+        Rules:
+        1. One concept per card.
+        2. Clear questions, concise answers.
+        3. Categorize each card by topic.
+        {f'4. Include helpful hints where appropriate.' if include_hints else ''}
 
         Text: {text[:4000]}
 
-        Return ONLY valid JSON:
+        Return ONLY valid JSON with this structure:
+        {{"cards": [{{"front": "...", "back": "...", "topic": "...", "hint": "..."}}]}}
+        """
+        response = client.chat.completions.create(
+            model="deepseek-v4-pro",   # or deepseek-v4-flash, deepseek-chat[reference:2]
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.2,           # low temperature for structured output
+            max_tokens=2000,
+        )
+        result = json.loads(response.choices[0].message.content)
+        return result.get("cards", [])
+
+    # ------------------------------------------------------------
+    # 📄 Summarise notes
+    # ------------------------------------------------------------
+    async def summarize_notes(self, text: str, max_length: int = 500) -> Dict:
+        if self.use_mock:
+            return {
+                "summary": "This text appears to be about technology and programming concepts.",
+                "key_points": ["Variables store data.", "Functions perform actions."],
+                "key_terms": [{"term": "Variable", "definition": "A named storage location"}],
+            }
+
+        client = self._get_client()
+        prompt = f"""Summarize the following text in JSON:
         {{
-            "summary": "Summary text",
-            "key_points": ["Point 1", "Point 2", ...],
-            "key_terms": [{{"term": "Term", "definition": "Brief definition"}}, ...]
-        }}"""
+            "summary": "a concise summary (max {max_length} chars)",
+            "key_points": ["point1", "point2", ...],
+            "key_terms": [{{"term": "...", "definition": "..."}}]
+        }}
+        Text: {text[:4000]}
+        """
+        response = client.chat.completions.create(
+            model="deepseek-v4-pro",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
+            max_tokens=1000,
+        )
+        return json.loads(response.choices[0].message.content)
 
-        try:
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.3,
-                max_tokens=1000
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            return result
-
-        except Exception as e:
-            logger.error(f"Error summarizing notes: {str(e)}")
-            raise
-
+    # ------------------------------------------------------------
+    # ❓ Generate quiz
+    # ------------------------------------------------------------
     async def generate_quiz(
-            self,
-            cards_content: List[Dict],
-            question_count: int = 5,
-            difficulty: str = "medium"
+        self, cards_content: List[Dict], question_count: int = 5, difficulty: str = "medium"
     ) -> List[Dict]:
-        """Generate quiz questions from flashcard content"""
-        if not self.openai_client:
-            raise ValueError("OpenAI API key not configured")
+        if self.use_mock:
+            return [
+                {
+                    "question": "What is the output of print(2+2)?",
+                    "options": ["2", "4", "22", "Error"],
+                    "correct_answer": 1,
+                    "explanation": "The '+' operator adds two integers.",
+                }
+            ][:question_count]
 
-        # Prepare card content for prompt
-        cards_text = "\n".join([
-            f"Q: {card['front']}\nA: {card['back']}"
-            for card in cards_content[:20]  # Limit to 20 cards
-        ])
-
-        prompt = f"""Based on these flashcards, create {question_count} multiple-choice quiz questions.
-        Difficulty level: {difficulty}
-
-        Flashcards:
+        client = self._get_client()
+        cards_text = "\n".join([f"Q: {c['front']}\nA: {c['back']}" for c in cards_content[:20]])
+        prompt = f"""Create {question_count} multiple‑choice questions (difficulty: {difficulty}) based on these flashcards:
         {cards_text}
-
-        Requirements:
-        - 4 options per question
-        - One correct answer (indicated by index 0-3)
-        - Brief explanation of the correct answer
-        - Questions should test understanding, not just recall
-
-        Return ONLY valid JSON:
-        {{
-            "questions": [
-                {{
-                    "question": "Question text",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "correct_answer": 0,
-                    "explanation": "Why this is correct"
-                }}
-            ]
-        }}"""
-
-        try:
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-                max_tokens=2000
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            return result.get("questions", [])
-
-        except Exception as e:
-            logger.error(f"Error generating quiz: {str(e)}")
-            raise
+        Return JSON: {{"questions": [{{"question": "...", "options": ["A","B","C","D"], "correct_answer": 0, "explanation": "..."}}]}}
+        """
+        response = client.chat.completions.create(
+            model="deepseek-v4-pro",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        return json.loads(response.choices[0].message.content).get("questions", [])

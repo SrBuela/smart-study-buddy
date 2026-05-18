@@ -1,86 +1,72 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from beanie import PydanticObjectId
-from app.models.user import User
-from app.schemas.ai import (
-    FlashcardGenerationRequest, FlashcardGenerationResponse,
-    NoteSummaryRequest, NoteSummaryResponse,
-    QuizGenerationRequest, QuizResponse
-)
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.services.ai_service import AIService
 from app.routes.auth import get_current_user
-from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Optional
 
 router = APIRouter(prefix="/api/ai", tags=["AI Features"])
 ai_service = AIService()
 
-@router.post("/generate-cards", response_model=FlashcardGenerationResponse)
-async def generate_flashcards(request: FlashcardGenerationRequest, current_user: User = Depends(get_current_user)):
+# ---- Request models ----
+class FlashcardRequest(BaseModel):
+    text: str = Field(..., min_length=10)
+    card_count: int = Field(default=10, ge=1, le=50)
+    include_hints: bool = True
+
+class SummaryRequest(BaseModel):
+    text: str = Field(..., min_length=10)
+    max_length: Optional[int] = 500
+
+class QuizRequest(BaseModel):
+    deck_id: str
+    question_count: int = Field(default=10, ge=1, le=50)
+    difficulty: Optional[str] = "medium"
+
+@router.post("/generate-cards")
+async def generate_flashcards(req: FlashcardRequest, request: Request, current_user = Depends(get_current_user)):
     try:
         cards = await ai_service.generate_flashcards(
-            text=request.text,
-            count=request.card_count,
-            include_hints=request.include_hints
+            text=req.text,
+            count=req.card_count,
+            include_hints=req.include_hints,
         )
-        return FlashcardGenerationResponse(
-            cards=cards,
-            tokens_used=len(request.text.split()) // 100 * request.card_count,
-            estimated_cost=0.001 * request.card_count
-        )
+        return {
+            "cards": cards,
+            "tokens_used": len(req.text.split()) // 100 * req.card_count,
+            "estimated_cost": 0.001 * req.card_count,
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
 
-@router.post("/generate-from-pdf", response_model=FlashcardGenerationResponse)
-async def generate_from_pdf(
-    file: UploadFile = File(...),
-    card_count: int = 20,
-    current_user: User = Depends(get_current_user)
-):
+@router.post("/summarize")
+async def summarize_notes(req: SummaryRequest, request: Request, current_user = Depends(get_current_user)):
     try:
-        import PyPDF2, io
-        content = await file.read()
-        pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="No text extracted from PDF")
-        cards = await ai_service.generate_flashcards(text=text, count=card_count)
-        return FlashcardGenerationResponse(
-            cards=cards,
-            tokens_used=len(text.split()) // 100 * card_count,
-            estimated_cost=0.001 * card_count
-        )
+        result = await ai_service.summarize_notes(req.text, req.max_length)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
 
-@router.post("/summarize", response_model=NoteSummaryResponse)
-async def summarize_notes(request: NoteSummaryRequest, current_user: User = Depends(get_current_user)):
-    try:
-        result = await ai_service.summarize_notes(text=request.text, max_length=request.max_length)
-        return NoteSummaryResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/generate-quiz", response_model=QuizResponse)
-async def generate_quiz(request: QuizGenerationRequest, current_user: User = Depends(get_current_user)):
+@router.post("/generate-quiz")
+async def generate_quiz(req: QuizRequest, request: Request, current_user=Depends(get_current_user)):
     try:
-        from app.models.card import Card
-        # Fix: use $id for Beanie linked documents
-        cards = await Card.find(
-            {"deck.$id": PydanticObjectId(request.deck_id)}
-        ).to_list()
-        if not cards:
-            raise HTTPException(status_code=404, detail="No cards found in deck")
-        cards_content = [{"front": card.front, "back": card.back} for card in cards]
+        # Fetch real cards from the database
+        cards_col = request.app.state.db["cards"]
+        cursor = cards_col.find({"deck": req.deck_id, "owner": current_user["_id"]})
+        cards = []
+        async for doc in cursor:
+            cards.append({"front": doc["front"], "back": doc["back"]})
+
+        # Use the AI service (mock or real depending on key)
         questions = await ai_service.generate_quiz(
-            cards_content=cards_content,
-            question_count=request.question_count,
-            difficulty=request.difficulty
+            cards_content=cards,
+            question_count=req.question_count,
+            difficulty=req.difficulty or "medium",
         )
-        return QuizResponse(
-            questions=questions,
-            deck_id=request.deck_id,
-            generated_at=datetime.utcnow()
-        )
+        return {
+            "questions": questions,
+            "deck_id": req.deck_id,
+            "generated_at": str(__import__('datetime').datetime.utcnow()),
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))

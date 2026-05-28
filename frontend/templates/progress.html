@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 style="color: white;">📈 Progress Tracking</h1>
+    <p style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">
+        Track your learning progress and compare algorithm performance over time.
+    </p>
+
+    <!-- Progress Tracking Graphs -->
+    <div class="card">
+        <h2>📊 Weekly Mastery Progress</h2>
+        <p class="text-muted">How many cards you master each week</p>
+        <canvas id="weeklyProgressChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>⚖️ FSRS vs SM-2 Mastery Comparison</h2>
+        <p class="text-muted">Total mastered cards by algorithm</p>
+        <canvas id="algorithmComparisonChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>📅 Daily Study Activity</h2>
+        <p class="text-muted">Cards studied in the last 7 days</p>
+        <canvas id="dailyActivityChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>📈 Retention Rate Trend</h2>
+        <p class="text-muted">FSRS vs SM-2 retention rates over time</p>
+        <canvas id="retentionTrendChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>📊 Summary Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card" style="background: #27ae60;">
+                <div class="stat-number">{{ fsrs_mastered }}</div>
+                <div>FSRS Mastered</div>
+            </div>
+            <div class="stat-card" style="background: #3498db;">
+                <div class="stat-number">{{ sm2_mastered }}</div>
+                <div>SM-2 Mastered</div>
+            </div>
+            <div class="stat-card" style="background: #f39c12;">
+                <div class="stat-number">{{ total_studied_week }}</div>
+                <div>Cards Studied (Week)</div>
+            </div>
+            <div class="stat-card" style="background: #9b59b6;">
+                <div class="stat-number">{{ avg_retention }}%</div>
+                <div>Avg Retention Rate</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Chart 1: Weekly Mastery Progress
+    const weeklyCtx = document.getElementById('weeklyProgressChart').getContext('2d');
+    new Chart(weeklyCtx, {
+        type: 'line',
+        data: {
+            labels: {{ weekly_labels|safe }},
+            datasets: [{
+                label: 'Cards Mastered',
+                data: {{ weekly_data|safe }},
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#667eea',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Cards Mastered' } },
+                x: { title: { display: true, text: 'Week' } }
+            }
+        }
+    });
+
+    // Chart 2: FSRS vs SM-2 Mastery Comparison
+    const algoCtx = document.getElementById('algorithmComparisonChart').getContext('2d');
+    new Chart(algoCtx, {
+        type: 'bar',
+        data: {
+            labels: ['FSRS', 'SM-2'],
+            datasets: [{
+                label: 'Cards Mastered',
+                data: [{{ fsrs_mastered }}, {{ sm2_mastered }}],
+                backgroundColor: ['#27ae60', '#3498db'],
+                borderColor: ['#1e8449', '#2980b9'],
+                borderWidth: 2,
+                borderRadius: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { callbacks: { label: function(context) { return `${context.dataset.label}: ${context.raw} cards`; } } }
+            },
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Cards' } } }
+        }
+    });
+
+    // Chart 3: Daily Study Activity (Last 7 Days)
+    const dailyCtx = document.getElementById('dailyActivityChart').getContext('2d');
+    new Chart(dailyCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ daily_labels|safe }},
+            datasets: [{
+                label: 'Cards Studied',
+                data: {{ daily_data|safe }},
+                backgroundColor: 'rgba(243, 156, 18, 0.7)',
+                borderColor: '#f39c12',
+                borderWidth: 2,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { callbacks: { label: function(context) { return `${context.dataset.label}: ${context.raw} cards`; } } }
+            },
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Cards Studied' } } }
+        }
+    });
+
+    // Chart 4: Retention Rate Trend
+    const retentionCtx = document.getElementById('retentionTrendChart').getContext('2d');
+    new Chart(retentionCtx, {
+        type: 'line',
+        data: {
+            labels: {{ retention_labels|safe }},
+            datasets: [
+                {
+                    label: 'FSRS Retention',
+                    data: {{ fsrs_retention_data|safe }},
+                    borderColor: '#27ae60',
+                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'SM-2 Retention',
+                    data: {{ sm2_retention_data|safe }},
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100, title: { display: true, text: 'Retention Rate (%)' } },
+                x: { title: { display: true, text: 'Week' } }
+            }
+        }
+    });
+</script>
+
+<style>
+    canvas {
+        max-height: 300px;
+        margin-bottom: 10px;
+    }
+    .stat-card {
+        transition: transform 0.3s ease;
+        cursor: pointer;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .text-muted {
+        color: #666 !important;
+        margin-bottom: 15px;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}

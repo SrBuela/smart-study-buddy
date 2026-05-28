@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 style="color: white;">👑 Admin Dashboard - Student Activity Tracker</h1>
+    <p style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">
+        Monitor all student activities, progress, and research data
+    </p>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+        <div class="stat-card" style="background: #3498db;">
+            <div class="stat-number">{{ total_students }}</div>
+            <div>Total Students</div>
+            <small>Enrolled in research</small>
+        </div>
+        <div class="stat-card" style="background: #27ae60;">
+            <div class="stat-number">{{ total_cards_studied }}</div>
+            <div>Total Cards Studied</div>
+            <small>Across all students</small>
+        </div>
+        <div class="stat-card" style="background: #f39c12;">
+            <div class="stat-number">{{ total_quizzes }}</div>
+            <div>Total Quizzes Taken</div>
+            <small>Across all students</small>
+        </div>
+        <div class="stat-card" style="background: #9b59b6;">
+            <div class="stat-number">{{ avg_retention }}%</div>
+            <div>Avg Retention (FSRS)</div>
+            <small>Across all students</small>
+        </div>
+    </div>
+
+    <!-- Export Button -->
+    <div class="card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>📊 Export Research Data</h2>
+                <p>Download all student data for analysis (CSV/Excel format)</p>
+            </div>
+            <a href="{{ url_for('admin_export_all') }}" class="btn btn-success" style="padding: 12px 30px; font-size: 16px;">
+                📥 Export All Data (ZIP)
+            </a>
+        </div>
+    </div>
+
+    <!-- Students Table - All Activities -->
+    <div class="card">
+        <h2>📋 Student Performance & Activity</h2>
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                        <th>Student</th>
+                        <th>Email</th>
+                        <th>Cards Studied</th>
+                        <th>Quizzes Taken</th>
+                        <th>Total Points</th>
+                        <th>Streak</th>
+                        <th colspan="2">FSRS vs SM-2 Retention</th>
+                        <th>Winner</th>
+                    </tr>
+                    <tr style="background: #f0f0f0;">
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th>FSRS</th>
+                        <th>SM-2</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td><strong>{{ student.username }}</strong></td>
+                        <td>{{ student.email }}</td>
+                        <td>{{ student.total_studied }}</td>
+                        <td>{{ student.quiz_count }}</td>
+                        <td>🎯 {{ student.total_points }}</td>
+                        <td>🔥 {{ student.streak }} days</td>
+                        <td class="{% if student.fsrs_retention > student.sm2_retention %}better{% endif %}">
+                            {{ student.fsrs_retention }}%
+                            <small>({{ student.fsrs_reviews }} reviews)</small>
+                        </td>
+                        <td class="{% if student.sm2_retention > student.fsrs_retention %}better{% endif %}">
+                            {{ student.sm2_retention }}%
+                            <small>({{ student.sm2_reviews }} reviews)</small>
+                        </td>
+                        <td class="winner">
+                            {% if student.fsrs_retention > student.sm2_retention %}
+                                🏆 FSRS
+                            {% elif student.sm2_retention > student.fsrs_retention %}
+                                🏆 SM-2
+                            {% else %}
+                                🤝 Tie
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Detailed Activity Log -->
+    <div class="card">
+        <h2>📜 Recent Student Activity</h2>
+        <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #2c3e50; color: white;">
+                        <th>Time</th>
+                        <th>Student</th>
+                        <th>Activity</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in recent_activities %}
+                    <tr>
+                        <td style="font-size: 12px;">{{ activity.time }}</td>
+                        <td><strong>{{ activity.student }}</strong></td>
+                        <td>{{ activity.type }}</td>
+                        <td>{{ activity.details }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center;">No recent activities</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Algorithm Comparison Summary -->
+    <div class="card">
+        <h2>📊 Algorithm Performance Summary</h2>
+        <div class="stats-grid">
+            <div class="stat-card" style="background: #27ae60;">
+                <div class="stat-number">{{ fsrs_wins }}</div>
+                <div>Students where FSRS performed better</div>
+            </div>
+            <div class="stat-card" style="background: #3498db;">
+                <div class="stat-number">{{ sm2_wins }}</div>
+                <div>Students where SM-2 performed better</div>
+            </div>
+            <div class="stat-card" style="background: #f39c12;">
+                <div class="stat-number">{{ avg_retention_improvement }}%</div>
+                <div>Average Retention Improvement (FSRS - SM2)</div>
+            </div>
+        </div>
+        <div class="text-center mt-3">
+            <p class="info" style="padding: 10px; background: #e8f4f8; border-radius: 10px;">
+                📊 <strong>Research Conclusion:</strong> FSRS shows {{ avg_retention_improvement }}% higher retention rate than SM-2 across {{ total_students }} students.
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    
+    .data-table th, .data-table td {
+        padding: 10px;
+        text-align: center;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .data-table tr:hover {
+        background: #f5f5f5;
+    }
+    
+    .better {
+        background: #d4edda;
+        font-weight: bold;
+        color: #155724;
+    }
+    
+    .winner {
+        font-weight: bold;
+        background: #fff3cd;
+    }
+    
+    .stat-card {
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .btn {
+        padding: 12px 30px;
+        font-size: 16px;
+    }
+</style>
+{% endblock %}

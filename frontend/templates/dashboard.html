@@ -48,10 +48,13 @@
     <div class="card">
         <h2>⚡ Quick Actions</h2>
         <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+            <a href="{{ url_for('progress') }}" class="btn btn-info" style="padding: 12px 30px; font-size: 16px;">
+                📈 View Progress Charts
+            </a>
             <a href="{{ url_for('quiz_select') }}" class="btn btn-primary" style="padding: 12px 30px; font-size: 16px;">
                 📝 Take a Quiz
             </a>
-            <a href="{{ url_for('research') }}" class="btn btn-info" style="padding: 12px 30px; font-size: 16px;">
+            <a href="{{ url_for('research') }}" class="btn btn-primary" style="padding: 12px 30px; font-size: 16px;">
                 🔬 Research Dashboard
             </a>
             <a href="{{ url_for('learning_material') }}" class="btn btn-warning" style="padding: 12px 30px; font-size: 16px;">
@@ -69,7 +72,7 @@
         </div>
     </div>
 
-    <!-- Decks List - Simplified -->
+    <!-- Decks List -->
     <div class="card">
         <h2>📚 Your Decks</h2>
         {% for deck in decks %}
@@ -112,23 +115,6 @@
         </form>
     </div>
 </div>
-
-<script>
-    function showCreateDeckModal() {
-        document.getElementById('createDeckModal').style.display = 'flex';
-    }
-    
-    function hideCreateDeckModal() {
-        document.getElementById('createDeckModal').style.display = 'none';
-    }
-    
-    window.onclick = function(event) {
-        const modal = document.getElementById('createDeckModal');
-        if (event.target === modal) {
-            hideCreateDeckModal();
-        }
-    }
-</script>
 
 <style>
     .deck-item {
@@ -191,4 +177,21 @@
         margin-top: 5px;
     }
 </style>
+
+<script>
+    function showCreateDeckModal() {
+        document.getElementById('createDeckModal').style.display = 'flex';
+    }
+    
+    function hideCreateDeckModal() {
+        document.getElementById('createDeckModal').style.display = 'none';
+    }
+    
+    window.onclick = function(event) {
+        const modal = document.getElementById('createDeckModal');
+        if (event.target === modal) {
+            hideCreateDeckModal();
+        }
+    }
+</script>
 {% endblock %}

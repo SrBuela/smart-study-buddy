@@ -503,7 +503,6 @@
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>
                 {% if current_user.username == 'admin' or current_user.username == 'Joseph Mercy Buela' %}
                     <a href="{{ url_for('admin_dashboard') }}" style="background: #e74c3c; color: white;">👑 Admin</a>
-                    <a href="{{ url_for('research_statistics') }}" style="background: #9b59b6; color: white;">📊 T-Test</a>
                 {% else %}
                     <a href="{{ url_for('progress') }}">📈 Progress</a>
                     <a href="{{ url_for('quiz_select') }}">📝 Quiz</a>
